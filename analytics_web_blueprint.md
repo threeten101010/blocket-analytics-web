@@ -53,7 +53,7 @@ graph TD
     SearchBar -->|1. Natural Language Query| API
     DBClient -->|2. Schema-aware SQL Query| DuckDB
     DuckDB -->|3. Return Raw Datasets| DBClient
-    API -->|4. Return JSON (SQL, Data, Chart Type)| UI
+    API -->|4. Return JSON payload with data and chart type| UI
 ```
 
 ---
