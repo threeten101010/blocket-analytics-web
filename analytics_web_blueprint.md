@@ -47,7 +47,7 @@ graph TD
     end
 
     subgraph Data [Data Tier]
-        DuckDB[("DuckDB: listings_analytics")]
+        DuckDB["DuckDB: listings_analytics"]
     end
 
     SearchBar -->|1. Natural Language Query| API
