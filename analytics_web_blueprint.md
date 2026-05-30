@@ -24,6 +24,38 @@ The project uses a split-stack architecture to ensure maximum modularity, fast A
 * **Natural Language Engine**: **Gemini 1.5 Flash** (highly responsive, low-latency) or **Gemini 1.5 Pro** (advanced SQL syntax generator).
 * **Validation**: Pydantic v2.
 
+### 🌐 Architectural Stack Visualization
+
+```mermaid
+graph TD
+    subgraph Client [Front-End: Next.js / React]
+        UI["Dashboard UI (Glassmorphic)"]
+        SearchBar["Search Input (Natural Language)"]
+        ChartRenderer["Recharts (Line/Bar/Scatter SVG)"]
+        TableRenderer["Data Table Grid"]
+        UI --> SearchBar
+        UI --> ChartRenderer
+        UI --> TableRenderer
+    end
+
+    subgraph Server [Back-End: FastAPI]
+        API["POST /api/query"]
+        LLMTranslator["Gemini NL-to-SQL Engine"]
+        DBClient["DuckDB Query Execution Client"]
+        API --> LLMTranslator
+        LLMTranslator --> DBClient
+    end
+
+    subgraph Data [Data Tier]
+        DuckDB[("DuckDB: listings_analytics")]
+    end
+
+    SearchBar -->|1. Natural Language Query| API
+    DBClient -->|2. Schema-aware SQL Query| DuckDB
+    DuckDB -->|3. Return Raw Datasets| DBClient
+    API -->|4. Return JSON (SQL, Data, Chart Type)| UI
+```
+
 ---
 
 ## 📂 Project Directory Structure
