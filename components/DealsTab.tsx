@@ -22,6 +22,11 @@ export default function DealsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Filters State
+  const [brandFilter, setBrandFilter] = useState("All");
+  const [locationFilter, setLocationFilter] = useState("All");
+  const [minDiscountFilter, setMinDiscountFilter] = useState(0);
+
   useEffect(() => {
     async function loadDeals() {
       try {
@@ -42,6 +47,33 @@ export default function DealsTab() {
     }
     loadDeals();
   }, []);
+
+  // Collect unique brands and locations for filter options
+  const uniqueBrands = Array.from(new Set([
+    ...deals.map(d => d.brand?.toUpperCase()),
+    ...negotiable.map(n => n.brand?.toUpperCase())
+  ].filter(Boolean))).sort() as string[];
+
+  const uniqueLocations = Array.from(new Set([
+    ...deals.map(d => d.location),
+    ...negotiable.map(n => n.location)
+  ].filter(Boolean))).sort() as string[];
+
+  // Filter evaluation logic
+  const filteredDeals = deals.filter(deal => {
+    const brand = deal.brand?.toUpperCase() || "";
+    const matchBrand = brandFilter === "All" || brand === brandFilter;
+    const matchLocation = locationFilter === "All" || deal.location === locationFilter;
+    const matchDiscount = Math.abs(deal.discount_pct) >= minDiscountFilter;
+    return matchBrand && matchLocation && matchDiscount;
+  });
+
+  const filteredNegotiable = negotiable.filter(item => {
+    const brand = item.brand?.toUpperCase() || "";
+    const matchBrand = brandFilter === "All" || brand === brandFilter;
+    const matchLocation = locationFilter === "All" || item.location === locationFilter;
+    return matchBrand && matchLocation;
+  });
 
   const getNegotiabilityColor = (score: number) => {
     if (score >= 70) return "text-emerald-400 border-emerald-400/30 bg-emerald-400/5";
@@ -71,6 +103,58 @@ export default function DealsTab() {
   return (
     <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-6">
       
+      {/* Interactive Controls & Filters Bar */}
+      <div className="col-span-1 lg:col-span-2 p-5 rounded-2xl glass-panel border border-white/5 flex flex-wrap items-center gap-6 text-xs md:text-sm shadow-xl">
+        <div className="flex items-center gap-2">
+          <span className="font-extrabold text-slate-300 uppercase tracking-wider text-[10px] md:text-xs">🔎 Filter Bargains</span>
+        </div>
+        
+        {/* Brand Dropdown */}
+        <div className="flex flex-col gap-1 min-w-[140px] flex-1 lg:flex-none">
+          <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Brand</label>
+          <select
+            value={brandFilter}
+            onChange={(e) => setBrandFilter(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:border-emerald-400/60 font-sans"
+          >
+            <option value="All" className="bg-[#0B0F19]">All Brands</option>
+            {uniqueBrands.map(b => (
+              <option key={b} value={b} className="bg-[#0B0F19]">{b}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Location Dropdown */}
+        <div className="flex flex-col gap-1 min-w-[160px] flex-1 lg:flex-none">
+          <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Location</label>
+          <select
+            value={locationFilter}
+            onChange={(e) => setLocationFilter(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:border-emerald-400/60 font-sans"
+          >
+            <option value="All" className="bg-[#0B0F19]">All Locations</option>
+            {uniqueLocations.map(l => (
+              <option key={l} value={l} className="bg-[#0B0F19]">{l}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Min Discount Dropdown */}
+        <div className="flex flex-col gap-1 min-w-[130px] flex-1 lg:flex-none">
+          <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Min Price-Drop</label>
+          <select
+            value={minDiscountFilter}
+            onChange={(e) => setMinDiscountFilter(Number(e.target.value))}
+            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:border-emerald-400/60 font-sans"
+          >
+            <option value="0" className="bg-[#0B0F19]">All Price Drops</option>
+            <option value="15" className="bg-[#0B0F19]">15% or more</option>
+            <option value="25" className="bg-[#0B0F19]">25% or more</option>
+            <option value="35" className="bg-[#0B0F19]">35% or more</option>
+          </select>
+        </div>
+      </div>
+      
       {/* COLUMN A: Underpriced Bargains */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2 border-b border-white/5 pb-3">
@@ -83,34 +167,34 @@ export default function DealsTab() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto pr-1">
-          {deals.length > 0 ? (
-            deals.map((deal, idx) => {
+        <div className="flex flex-col gap-3 max-h-[750px] overflow-y-auto pr-1">
+          {filteredDeals.length > 0 ? (
+            filteredDeals.map((deal, idx) => {
               const savings = deal.fair_market_value - deal.listed_price;
               return (
-                <div key={idx} className="p-4 rounded-xl glass-panel glass-panel-hover flex justify-between items-center gap-4 relative overflow-hidden group">
+                <div key={idx} className="p-5 min-h-[125px] rounded-xl glass-panel glass-panel-hover flex justify-between items-start gap-4 relative overflow-hidden group">
                   {/* Subtle hover background highlight */}
                   <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-r from-transparent to-emerald-400/[0.02] -z-10 group-hover:to-emerald-400/[0.04] transition-all"></div>
                   
-                  <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                  <div className="flex flex-col gap-2 flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-xs md:text-sm text-slate-200 truncate font-sans">
+                      <span className="font-extrabold text-sm text-slate-200 truncate font-sans">
                         {deal.brand ? `${deal.brand} ${deal.model || ""}` : "Unknown Model"}
                       </span>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-slate-400 font-sans">
-                      <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-slate-500" />{deal.model_year}</span>
-                      <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-500" />{deal.location}</span>
-                      <span className="flex items-center gap-1"><DollarSign className="w-3 h-3 text-slate-500" />FMV: {deal.fair_market_value.toLocaleString()} kr</span>
+                      <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-500" />{deal.model_year}</span>
+                      <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-slate-500" />{deal.location}</span>
+                      <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5 text-slate-500" />FMV: {deal.fair_market_value.toLocaleString()} kr</span>
                     </div>
 
                     <div className="text-[10px] text-emerald-400 font-medium font-sans mt-0.5">
-                      💰 Potential savings of <span className="font-bold">{savings.toLocaleString()} kr</span> relative to national medians
+                      💰 Savings: <span className="font-bold">{savings.toLocaleString()} kr</span> relative to national medians
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end gap-2.5">
+                  <div className="flex flex-col items-end gap-3 shrink-0">
                     <span className="text-xs md:text-sm font-extrabold text-emerald-400 px-2 py-0.5 rounded bg-emerald-400/15 border border-emerald-400/20 font-mono shadow-[0_0_10px_rgba(52,211,153,0.1)]">
                       {deal.discount_pct}%
                     </span>
@@ -118,7 +202,7 @@ export default function DealsTab() {
                       href={deal.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white underline"
+                      className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white underline font-sans"
                     >
                       <span>View Ad</span>
                       <ExternalLink className="w-2.5 h-2.5" />
@@ -129,7 +213,7 @@ export default function DealsTab() {
             })
           ) : (
             <div className="p-8 text-center text-slate-500 glass-panel rounded-xl">
-              No hot deals found. Check back after the next scraper cycle.
+              No matching hot deals found. Try adjusting your filters.
             </div>
           )}
         </div>
@@ -147,37 +231,37 @@ export default function DealsTab() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto pr-1">
-          {negotiable.length > 0 ? (
-            negotiable.map((item, idx) => {
+        <div className="flex flex-col gap-3 max-h-[750px] overflow-y-auto pr-1">
+          {filteredNegotiable.length > 0 ? (
+            filteredNegotiable.map((item, idx) => {
               const score = item.negotiability_score || 0;
               const isOverpriced = item.discount_pct > 0;
               
               return (
-                <div key={idx} className="p-4 rounded-xl glass-panel glass-panel-hover flex justify-between items-center gap-4 relative overflow-hidden group">
+                <div key={idx} className="p-5 min-h-[125px] rounded-xl glass-panel glass-panel-hover flex justify-between items-start gap-4 relative overflow-hidden group">
                   <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-r from-transparent to-indigo-400/[0.01] -z-10 group-hover:to-indigo-400/[0.03] transition-all"></div>
                   
-                  <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                    <span className="font-bold text-xs md:text-sm text-slate-200 truncate font-sans">
+                  <div className="flex flex-col gap-2 flex-1 min-w-0">
+                    <span className="font-extrabold text-sm text-slate-200 truncate font-sans">
                       {item.brand ? `${item.brand} ${item.model || ""}` : "Unknown Model"}
                     </span>
 
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-slate-400 font-sans">
-                      <span className="flex items-center gap-1"><Calendar className="w-3 h-3 text-slate-500" />{item.model_year}</span>
-                      <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-500" />{item.location}</span>
-                      <span className="flex items-center gap-1"><Tag className="w-3 h-3 text-slate-500" />Listed: {item.listed_price.toLocaleString()} kr</span>
+                      <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-500" />{item.model_year}</span>
+                      <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-slate-500" />{item.location}</span>
+                      <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5 text-slate-500" />Listed: {item.listed_price.toLocaleString()} kr</span>
                     </div>
 
                     <div className={`text-[10px] font-sans font-medium flex items-center gap-1 mt-0.5 ${isOverpriced ? "text-indigo-300" : "text-slate-400"}`}>
                       {isOverpriced ? (
-                        <>📈 Price premium of <span className="font-bold text-indigo-400">+{item.discount_pct}%</span> above fair value ({item.fair_market_value.toLocaleString()} kr)</>
+                        <>📈 Markup: <span className="font-bold text-indigo-400">+{item.discount_pct}%</span> above FMV ({item.fair_market_value.toLocaleString()} kr)</>
                       ) : (
-                        <>📉 Listed slightly below fair value ({item.fair_market_value.toLocaleString()} kr)</>
+                        <>📉 Listed slightly below FMV ({item.fair_market_value.toLocaleString()} kr)</>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end gap-2.5">
+                  <div className="flex flex-col items-end gap-3 shrink-0">
                     {/* Glowing Negotiability Index Pill */}
                     <div className={`px-2.5 py-1 rounded-lg border text-center flex flex-col font-mono text-[10px] md:text-xs font-extrabold ${getNegotiabilityColor(score)}`}>
                       <span className="text-[8px] font-sans font-semibold uppercase tracking-wider text-slate-400 block -mb-0.5">Negotiable</span>
@@ -187,7 +271,7 @@ export default function DealsTab() {
                       href={item.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white underline"
+                      className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white underline font-sans"
                     >
                       <span>View Ad</span>
                       <ExternalLink className="w-2.5 h-2.5" />
@@ -198,7 +282,7 @@ export default function DealsTab() {
             })
           ) : (
             <div className="p-8 text-center text-slate-500 glass-panel rounded-xl">
-              No stale target ads found. Sells seem to be moving quickly!
+              No matching highly negotiable targets found. Try adjusting your filters.
             </div>
           )}
         </div>
