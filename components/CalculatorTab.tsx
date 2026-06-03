@@ -21,6 +21,8 @@ export default function CalculatorTab() {
     year: 2021,
     mileage: 12000,
     cc: 700,
+    model: "",
+    location: "",
   });
 
   const [result, setResult] = useState<any>(null);
@@ -211,6 +213,32 @@ export default function CalculatorTab() {
             className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-xs md:text-sm text-white focus:outline-none focus:border-emerald-400/60 font-sans"
             required
           />
+        </div>
+
+        {/* Model (Optional) & Location (Optional) */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Model (Optional)</label>
+            <input
+              type="text"
+              name="model"
+              placeholder="e.g. MT-07"
+              value={formData.model}
+              onChange={handleChange}
+              className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white focus:outline-none focus:border-emerald-400/60 font-sans placeholder-slate-600"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Location (Optional)</label>
+            <input
+              type="text"
+              name="location"
+              placeholder="e.g. Stockholm"
+              value={formData.location}
+              onChange={handleChange}
+              className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white focus:outline-none focus:border-emerald-400/60 font-sans placeholder-slate-600"
+            />
+          </div>
         </div>
 
         {/* Trigger Button */}
