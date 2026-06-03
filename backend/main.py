@@ -327,6 +327,37 @@ def dynamic_cohort_appraisal(payload: AppraisalRequest):
         "error": "No matching statistical cohort found for this vehicle profile."
     }
 
+@app.get("/api/cohort-options", dependencies=[Depends(enforce_security_policies)])
+def get_cohort_options(brand: str, vehicle_type: str):
+    """Fetches unique models and locations for a given brand and style combination."""
+    query = f"""
+        SELECT DISTINCT model, 'model' as type 
+        FROM listings_analytics 
+        WHERE brand ILIKE '{brand.strip()}' 
+          AND vehicle_type ILIKE '{vehicle_type.strip()}' 
+          AND model IS NOT NULL 
+          AND model != ''
+        UNION ALL
+        SELECT DISTINCT location, 'location' as type 
+        FROM listings_analytics 
+        WHERE brand ILIKE '{brand.strip()}' 
+          AND vehicle_type ILIKE '{vehicle_type.strip()}' 
+          AND location IS NOT NULL 
+          AND location != '';
+    """
+    success, _, rows, err = execute_remote_sql(query)
+    if not success:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch options: {err}")
+        
+    models = sorted(list(set([row["model"] for row in rows if row["type"] == "model"])))
+    locations = sorted(list(set([row["model"] for row in rows if row["type"] == "location"])))
+    
+    return {
+        "success": True,
+        "models": models,
+        "locations": locations
+    }
+
 @app.get("/api/deals", dependencies=[Depends(enforce_security_policies)])
 def fetch_top_market_deals():
     """Fetches high-probability deals and stale, highly negotiable postings."""
