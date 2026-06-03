@@ -34,10 +34,15 @@ if not os.path.exists(db_source):
     print(json.dumps({{"error": "Database source file not found on remote node."}}))
     sys.exit(0)
 
+conn = None
 try:
-    # Copy file to temp space to prevent any read-write locks with the active scraper daemon
-    shutil.copyfile(db_source, temp_db)
-    conn = duckdb.connect(temp_db, read_only=True)
+    # Try connecting directly first (fast, read-only)
+    try:
+        conn = duckdb.connect(db_source, read_only=True)
+    except Exception:
+        # Fallback to copying the file if direct connection fails (due to locks, etc.)
+        shutil.copyfile(db_source, temp_db)
+        conn = duckdb.connect(temp_db, read_only=True)
     
     res = conn.execute(\"\"\"{sql_query}\"\"\").fetchall()
     
@@ -51,6 +56,11 @@ try:
 except Exception as e:
     print(json.dumps({{"error": str(e)}}))
 finally:
+    if conn:
+        try:
+            conn.close()
+        except:
+            pass
     if os.path.exists(temp_db):
         try:
             os.remove(temp_db)
