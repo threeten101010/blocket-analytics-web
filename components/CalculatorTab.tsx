@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Calculator, ShieldAlert, BadgeInfo, Zap, BarChart, Sparkles, ExternalLink } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -32,6 +32,36 @@ export default function CalculatorTab() {
   // Result Filters State
   const [modelFilter, setModelFilter] = useState("All");
   const [locationFilter, setLocationFilter] = useState("All");
+
+  // Dynamic Options States (limited by brand and style)
+  const [modelsList, setModelsList] = useState<string[]>([]);
+  const [locationsList, setLocationsList] = useState<string[]>([]);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+
+  useEffect(() => {
+    async function fetchCohortOptions() {
+      try {
+        setOptionsLoading(true);
+        const res = await fetch(`http://localhost:8000/api/cohort-options?brand=${formData.brand}&vehicle_type=${encodeURIComponent(formData.vehicle_type)}`);
+        if (!res.ok) throw new Error("Failed to load options");
+        const data = await res.json();
+        if (data.success) {
+          setModelsList(data.models || []);
+          setLocationsList(data.locations || []);
+          setFormData(prev => ({
+            ...prev,
+            model: data.models?.includes(prev.model) ? prev.model : "",
+            location: data.locations?.includes(prev.location) ? prev.location : "",
+          }));
+        }
+      } catch (err) {
+        console.error("Error loading brand-style dynamic options:", err);
+      } finally {
+        setOptionsLoading(false);
+      }
+    }
+    fetchCohortOptions();
+  }, [formData.brand, formData.vehicle_type]);
 
   const commonBrands = [
     "Yamaha", "Honda", "Ktm", "Kawasaki", "Suzuki", "Bmw", "Husqvarna", "Triumph", "Ducati", "Aprilia"
@@ -219,25 +249,33 @@ export default function CalculatorTab() {
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Model (Optional)</label>
-            <input
-              type="text"
+            <select
               name="model"
-              placeholder="e.g. MT-07"
               value={formData.model}
               onChange={handleChange}
-              className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white focus:outline-none focus:border-emerald-400/60 font-sans placeholder-slate-600"
-            />
+              disabled={optionsLoading}
+              className="w-full px-3 py-2.5 rounded-lg bg-[#0B0F19]/60 border border-white/10 text-xs text-slate-200 focus:outline-none focus:border-emerald-400/60 font-sans"
+            >
+              <option value="" className="bg-[#0B0F19]">All Models</option>
+              {modelsList.map(m => (
+                <option key={m} value={m} className="bg-[#0B0F19]">{m}</option>
+              ))}
+            </select>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Location (Optional)</label>
-            <input
-              type="text"
+            <select
               name="location"
-              placeholder="e.g. Stockholm"
               value={formData.location}
               onChange={handleChange}
-              className="w-full px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white focus:outline-none focus:border-emerald-400/60 font-sans placeholder-slate-600"
-            />
+              disabled={optionsLoading}
+              className="w-full px-3 py-2.5 rounded-lg bg-[#0B0F19]/60 border border-white/10 text-xs text-slate-200 focus:outline-none focus:border-emerald-400/60 font-sans"
+            >
+              <option value="" className="bg-[#0B0F19]">All Locations</option>
+              {locationsList.map(l => (
+                <option key={l} value={l} className="bg-[#0B0F19]">{l}</option>
+              ))}
+            </select>
           </div>
         </div>
 
