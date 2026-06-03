@@ -60,6 +60,8 @@ class AppraisalRequest(BaseModel):
     year: int = Field(..., json_schema_extra={"example": 2021})
     mileage: int = Field(..., json_schema_extra={"example": 12000})
     cc: int = Field(..., json_schema_extra={"example": 700})
+    model: Optional[str] = None
+    location: Optional[str] = None
 
 # Bucketing algorithms to match frontend requests with SQL cohorts
 def get_year_bucket(year: int) -> str:
@@ -259,6 +261,9 @@ def dynamic_cohort_appraisal(payload: AppraisalRequest):
     m_bucket = get_mileage_bucket(payload.mileage)
     cc_bucket = get_cc_bucket(payload.cc)
     
+    p_model = payload.model.strip() if payload.model and payload.model.strip() else None
+    p_loc = payload.location.strip() if payload.location and payload.location.strip() else None
+    
     # Create the hierarchical keys (from specific to broad fallback)
     k1 = f"{brand_upper} | {v_type_cap} | {y_bucket} | {cc_bucket} | {m_bucket}"
     k2 = f"{brand_upper} | {v_type_cap} | {y_bucket} | {cc_bucket}"
@@ -285,17 +290,33 @@ def dynamic_cohort_appraisal(payload: AppraisalRequest):
             # Convert median duration to days
             days_to_sell = round(float(cohort_data["cohort_median_duration_hours"]) / 24.0, 1)
             
-            # Fetch cohort listings for visualization
+            # Fetch cohort listings for visualization (apply model/location filters if provided)
             sql_conds = cohort_key_to_sql_conditions(key)
+            if p_model:
+                sql_conds += f" AND model ILIKE '%{p_model}%'"
+            if p_loc:
+                sql_conds += f" AND location ILIKE '%{p_loc}%'"
+                
             listings_query = f"SELECT title, brand, model, price_sek, mileage_km, model_year, location, url, is_active FROM listings_analytics WHERE {sql_conds} ORDER BY published_at DESC LIMIT 150;"
             list_success, _, listings_rows, _ = execute_remote_sql(listings_query)
+            
+            fmv = cohort_data["cohort_median_price"]
+            size = cohort_data["cohort_size"]
+            
+            # If model or location filter is active, dynamically calculate refined statistics
+            if (p_model or p_loc) and list_success and listings_rows:
+                prices = sorted([float(r["price_sek"]) for r in listings_rows if r.get("price_sek")])
+                if prices:
+                    mid = len(prices) // 2
+                    fmv = int(prices[mid] if len(prices) % 2 != 0 else (prices[mid-1] + prices[mid]) / 2)
+                    size = len(prices)
             
             return {
                 "success": True,
                 "cohort_key": key,
-                "cohort_level": lvl_desc,
-                "cohort_size": cohort_data["cohort_size"],
-                "fair_market_value": cohort_data["cohort_median_price"],
+                "cohort_level": lvl_desc + (" (Filtered)" if (p_model or p_loc) else ""),
+                "cohort_size": size,
+                "fair_market_value": fmv,
                 "average_days_to_sell": days_to_sell,
                 "listings": listings_rows if list_success else []
             }
