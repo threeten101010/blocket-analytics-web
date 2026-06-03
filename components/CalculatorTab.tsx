@@ -27,6 +27,10 @@ export default function CalculatorTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Result Filters State
+  const [modelFilter, setModelFilter] = useState("All");
+  const [locationFilter, setLocationFilter] = useState("All");
+
   const commonBrands = [
     "Yamaha", "Honda", "Ktm", "Kawasaki", "Suzuki", "Bmw", "Husqvarna", "Triumph", "Ducati", "Aprilia"
   ];
@@ -61,6 +65,8 @@ export default function CalculatorTab() {
       const data = await res.json();
       if (data.success) {
         setResult(data);
+        setModelFilter("All");
+        setLocationFilter("All");
       } else {
         setError(data.error || "No cohort metrics available.");
       }
@@ -81,6 +87,7 @@ export default function CalculatorTab() {
             <p className="font-semibold text-emerald-400">Price: {Number(data.price_sek).toLocaleString()} SEK</p>
             <p>Mileage: {Number(data.mileage_km).toLocaleString()} km</p>
             <p>Year: {data.model_year}</p>
+            {data.model && <p>Model: {data.model}</p>}
             <p>Location: {data.location}</p>
             <div className="flex items-center gap-1.5 mt-1">
               <span>Status:</span>
@@ -96,6 +103,32 @@ export default function CalculatorTab() {
     }
     return null;
   };
+
+  // Extract unique models and locations from the cohort listings
+  const cohortListings = result?.listings || [];
+
+  const uniqueModels = Array.from(new Set(
+    cohortListings.map((item: any) => item.model?.trim()).filter(Boolean)
+  )).sort() as string[];
+
+  const uniqueLocations = Array.from(new Set(
+    cohortListings.map((item: any) => item.location?.trim()).filter(Boolean)
+  )).sort() as string[];
+
+  const filteredListings = cohortListings.filter((item: any) => {
+    const matchModel = modelFilter === "All" || item.model?.trim() === modelFilter;
+    const matchLocation = locationFilter === "All" || item.location?.trim() === locationFilter;
+    return matchModel && matchLocation;
+  });
+
+  const calculateMedianPrice = (listings: any[]) => {
+    if (listings.length === 0) return 0;
+    const prices = listings.map(l => Number(l.price_sek)).filter(p => !isNaN(p)).sort((a, b) => a - b);
+    const mid = Math.floor(prices.length / 2);
+    return prices.length % 2 !== 0 ? prices[mid] : Math.round((prices[mid - 1] + prices[mid]) / 2);
+  };
+
+  const filteredFMV = calculateMedianPrice(filteredListings);
 
   return (
     <div className="w-full grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
@@ -270,6 +303,64 @@ export default function CalculatorTab() {
 
       {result && result.listings && result.listings.length > 0 && (
         <div className="md:col-span-12 flex flex-col gap-6 mt-4 border-t border-white/5 pt-8">
+          
+          {/* Cohort Filter Controls & Dynamic Summary Bar */}
+          <div className="p-5 rounded-2xl glass-panel border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-xl relative overflow-hidden">
+            <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-r from-transparent to-violet-500/[0.01] -z-10"></div>
+            
+            <div className="flex flex-wrap items-center gap-6 text-xs md:text-sm">
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-slate-300 uppercase tracking-wider text-[10px] md:text-xs">🎯 Cohort Refinement</span>
+              </div>
+              
+              {/* Model Dropdown */}
+              <div className="flex flex-col gap-1 min-w-[150px] flex-1 lg:flex-none">
+                <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider font-mono">Model Option</label>
+                <select
+                  value={modelFilter}
+                  onChange={(e) => setModelFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:border-emerald-400/60 font-sans"
+                >
+                  <option value="All" className="bg-[#0B0F19]">All Models</option>
+                  {uniqueModels.map(m => (
+                    <option key={m} value={m} className="bg-[#0B0F19]">{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Location Dropdown */}
+              <div className="flex flex-col gap-1 min-w-[150px] flex-1 lg:flex-none">
+                <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider font-mono">Location Option</label>
+                <select
+                  value={locationFilter}
+                  onChange={(e) => setLocationFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-slate-200 focus:outline-none focus:border-emerald-400/60 font-sans"
+                >
+                  <option value="All" className="bg-[#0B0F19]">All Locations</option>
+                  {uniqueLocations.map(l => (
+                    <option key={l} value={l} className="bg-[#0B0F19]">{l}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Filtered stats summary card */}
+            <div className="flex items-center gap-6 border-t md:border-t-0 md:border-l border-white/5 pt-4 md:pt-0 md:pl-6 text-xs font-sans">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider font-mono">Filtered FMV</span>
+                <span className="font-extrabold text-emerald-400 text-sm md:text-base">
+                  {filteredFMV > 0 ? `${filteredFMV.toLocaleString()} SEK` : "—"}
+                </span>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider font-mono">Filtered Sample</span>
+                <span className="font-extrabold text-slate-200 text-sm md:text-base">
+                  {filteredListings.length} of {cohortListings.length}
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Scatter Chart (col-span-7) */}
             <div className="lg:col-span-7 p-5 rounded-2xl glass-panel border border-white/5 shadow-2xl flex flex-col gap-4">
@@ -281,7 +372,7 @@ export default function CalculatorTab() {
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-400 font-mono">
-                  Sample: {result.listings.length} matches
+                  Sample: {filteredListings.length} matches
                 </span>
               </div>
               
@@ -315,8 +406,16 @@ export default function CalculatorTab() {
                       strokeDasharray="5 5" 
                       label={{ value: 'FMV Reference', fill: '#34D399', fontSize: 10, position: 'top' }} 
                     />
-                    <Scatter name="Listings" data={result.listings} fill="#8B5CF6">
-                      {result.listings.map((entry: any, index: number) => {
+                    {filteredFMV > 0 && filteredFMV !== result.fair_market_value && (
+                      <ReferenceLine 
+                        y={filteredFMV} 
+                        stroke="#A78BFA" 
+                        strokeDasharray="3 3" 
+                        label={{ value: `Filtered FMV (${filteredFMV.toLocaleString()} kr)`, fill: '#A78BFA', fontSize: 9, position: 'insideBottomRight' }} 
+                      />
+                    )}
+                    <Scatter name="Listings" data={filteredListings} fill="#8B5CF6">
+                      {filteredListings.map((entry: any, index: number) => {
                         return (
                           <Cell 
                             key={`cell-${index}`} 
@@ -343,41 +442,47 @@ export default function CalculatorTab() {
               </div>
 
               <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1">
-                {result.listings.map((item: any, idx: number) => (
-                  <div key={idx} className="p-3 rounded-lg bg-white/5 border border-white/5 hover:border-white/10 transition-all flex items-center justify-between gap-4 text-xs font-sans">
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-bold text-slate-200 truncate">{item.title}</span>
-                        {item.is_active ? (
-                          <span className="px-1.5 py-0.5 rounded text-[8px] font-extrabold tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase shrink-0">Active</span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[8px] font-extrabold tracking-wider bg-violet-500/10 text-violet-400 border border-violet-500/20 uppercase shrink-0">Sold</span>
+                {filteredListings.length > 0 ? (
+                  filteredListings.map((item: any, idx: number) => (
+                    <div key={idx} className="p-3 rounded-lg bg-white/5 border border-white/5 hover:border-white/10 transition-all flex items-center justify-between gap-4 text-xs font-sans">
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-bold text-slate-200 truncate">{item.title}</span>
+                          {item.is_active ? (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-extrabold tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase shrink-0">Active</span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-extrabold tracking-wider bg-violet-500/10 text-violet-400 border border-violet-500/20 uppercase shrink-0">Sold</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                          <span>{item.model_year} yr</span>
+                          <span>•</span>
+                          <span>{Number(item.mileage_km).toLocaleString()} km</span>
+                          <span>•</span>
+                          <span>{item.location}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-extrabold text-emerald-400">{Number(item.price_sek).toLocaleString()} kr</span>
+                        {item.url && (
+                          <a 
+                            href={item.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="p-1.5 rounded bg-white/5 border border-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                        <span>{item.model_year} yr</span>
-                        <span>•</span>
-                        <span>{Number(item.mileage_km).toLocaleString()} km</span>
-                        <span>•</span>
-                        <span>{item.location}</span>
-                      </div>
                     </div>
-                    
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="font-extrabold text-emerald-400">{Number(item.price_sek).toLocaleString()} kr</span>
-                      {item.url && (
-                        <a 
-                          href={item.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="p-1.5 rounded bg-white/5 border border-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-slate-500 glass-panel rounded-xl w-full">
+                    No matching listings found for filters.
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>

@@ -10,10 +10,13 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
+from collections import defaultdict
+import time
+import os
 
 # Local modules
 from database import execute_remote_sql
@@ -25,14 +28,26 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS so our Next.js frontend can connect
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # In development, allow all origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Configure CORS dynamically based on environment configuration
+CORS_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3005")
+ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_RAW.split(",") if origin.strip()]
+
+if os.getenv("NODE_ENV") == "production":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # --- Pydantic Schema Definitions ---
 class QueryRequest(BaseModel):
@@ -159,6 +174,33 @@ def is_safe_read_only_sql(sql_query: str) -> bool:
         
     return True
 
+# API key for production authorization
+API_KEY = os.getenv("BLOCKET_API_KEY", "dev-secret-key-101010")
+
+# In-memory sliding-window rate limiter: max 15 requests per minute per IP
+ip_request_timestamps = defaultdict(list)
+
+def enforce_security_policies(request: Request, x_api_key: str = Header(None)):
+    # 1. API Token Verification (if enabled in env or in production)
+    require_auth = os.getenv("REQUIRE_API_KEY", "false").lower() == "true" or os.getenv("NODE_ENV") == "production"
+    if require_auth:
+        if not x_api_key or x_api_key != API_KEY:
+            raise HTTPException(status_code=401, detail="Unauthorized: Invalid or missing X-API-Key header.")
+
+    # 2. Rate Limiting (15 calls / minute / IP)
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    now = time.time()
+    
+    # Filter older timestamps
+    ip_request_timestamps[client_ip] = [t for t in ip_request_timestamps[client_ip] if now - t < 60]
+    
+    if len(ip_request_timestamps[client_ip]) >= 15:
+        raise HTTPException(
+            status_code=429, 
+            detail="Too Many Requests: Rate limit exceeded (15 queries per minute per client IP)."
+        )
+    ip_request_timestamps[client_ip].append(now)
+
 # --- REST Endpoints ---
 
 @app.get("/api/health")
@@ -170,7 +212,7 @@ def health_check():
     else:
         return {"status": "degraded", "database": "disconnected", "error": err}
 
-@app.post("/api/query")
+@app.post("/api/query", dependencies=[Depends(enforce_security_policies)])
 def run_natural_language_query(payload: QueryRequest):
     """Translates a natural language search query into SQL, runs it, and formats the charts data."""
     # 1. Translate via Gemini
@@ -207,7 +249,7 @@ def run_natural_language_query(payload: QueryRequest):
         }
     }
 
-@app.post("/api/appraise")
+@app.post("/api/appraise", dependencies=[Depends(enforce_security_policies)])
 def dynamic_cohort_appraisal(payload: AppraisalRequest):
     """Calculates fair market value dynamically using the hierarchical cohort medians."""
     brand_upper = payload.brand.upper()
@@ -245,7 +287,7 @@ def dynamic_cohort_appraisal(payload: AppraisalRequest):
             
             # Fetch cohort listings for visualization
             sql_conds = cohort_key_to_sql_conditions(key)
-            listings_query = f"SELECT title, price_sek, mileage_km, model_year, location, url, is_active FROM listings_analytics WHERE {sql_conds} ORDER BY published_at DESC LIMIT 80;"
+            listings_query = f"SELECT title, brand, model, price_sek, mileage_km, model_year, location, url, is_active FROM listings_analytics WHERE {sql_conds} ORDER BY published_at DESC LIMIT 150;"
             list_success, _, listings_rows, _ = execute_remote_sql(listings_query)
             
             return {
@@ -264,7 +306,7 @@ def dynamic_cohort_appraisal(payload: AppraisalRequest):
         "error": "No matching statistical cohort found for this vehicle profile."
     }
 
-@app.get("/api/deals")
+@app.get("/api/deals", dependencies=[Depends(enforce_security_policies)])
 def fetch_top_market_deals():
     """Fetches high-probability deals and stale, highly negotiable postings."""
     # 1. Underpriced deals
@@ -309,7 +351,7 @@ def fetch_top_market_deals():
         "negotiation_targets": neg_rows
     }
 
-@app.get("/api/geo-insights")
+@app.get("/api/geo-insights", dependencies=[Depends(enforce_security_policies)])
 def fetch_geo_insights():
     """Fetches location-tier analysis and municipal listing distributions."""
     tier_query = """
