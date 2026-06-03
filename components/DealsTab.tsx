@@ -186,6 +186,7 @@ export default function DealsTab() {
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-slate-400 font-sans">
                       <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-500" />{deal.model_year}</span>
                       <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-slate-500" />{deal.location}</span>
+                      <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5 text-slate-500" />Listed: {deal.listed_price.toLocaleString()} kr</span>
                       <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5 text-slate-500" />FMV: {deal.fair_market_value.toLocaleString()} kr</span>
                     </div>
 
