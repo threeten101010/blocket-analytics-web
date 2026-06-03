@@ -186,12 +186,21 @@ export default function DealsTab() {
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-slate-400 font-sans">
                       <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-500" />{deal.model_year}</span>
                       <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-slate-500" />{deal.location}</span>
-                      <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5 text-slate-500" />Listed: {deal.listed_price.toLocaleString()} kr</span>
-                      <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5 text-slate-500" />FMV: {deal.fair_market_value.toLocaleString()} kr</span>
                     </div>
 
-                    <div className="text-[10px] text-emerald-400 font-medium font-sans mt-0.5">
-                      💰 Savings: <span className="font-bold">{savings.toLocaleString()} kr</span> relative to national medians
+                    <div className="mt-2 grid grid-cols-3 gap-2 py-2 px-3 rounded-lg bg-white/5 border border-white/5 text-slate-300 font-sans text-xs">
+                      <div>
+                        <span className="block text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Listed Price</span>
+                        <span className="font-bold text-white text-xs md:text-sm">{deal.listed_price.toLocaleString()} kr</span>
+                      </div>
+                      <div className="border-l border-white/5 pl-2">
+                        <span className="block text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Fair Market Value</span>
+                        <span className="font-bold text-slate-300 text-xs md:text-sm">{deal.fair_market_value.toLocaleString()} kr</span>
+                      </div>
+                      <div className="border-l border-white/5 pl-2">
+                        <span className="block text-[9px] text-emerald-400 uppercase tracking-wider font-semibold">Total Savings</span>
+                        <span className="font-extrabold text-emerald-400 text-xs md:text-sm">{savings.toLocaleString()} kr</span>
+                      </div>
                     </div>
                   </div>
 
@@ -237,6 +246,7 @@ export default function DealsTab() {
             filteredNegotiable.map((item, idx) => {
               const score = item.negotiability_score || 0;
               const isOverpriced = item.discount_pct > 0;
+              const priceDiff = Math.abs(item.listed_price - item.fair_market_value);
               
               return (
                 <div key={idx} className="p-5 min-h-[125px] rounded-xl glass-panel glass-panel-hover flex justify-between items-start gap-4 relative overflow-hidden group">
@@ -250,15 +260,30 @@ export default function DealsTab() {
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[10px] text-slate-400 font-sans">
                       <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-500" />{item.model_year}</span>
                       <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-slate-500" />{item.location}</span>
-                      <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5 text-slate-500" />Listed: {item.listed_price.toLocaleString()} kr</span>
                     </div>
 
-                    <div className={`text-[10px] font-sans font-medium flex items-center gap-1 mt-0.5 ${isOverpriced ? "text-indigo-300" : "text-slate-400"}`}>
-                      {isOverpriced ? (
-                        <>📈 Markup: <span className="font-bold text-indigo-400">+{item.discount_pct}%</span> above FMV ({item.fair_market_value.toLocaleString()} kr)</>
-                      ) : (
-                        <>📉 Listed slightly below FMV ({item.fair_market_value.toLocaleString()} kr)</>
-                      )}
+                    <div className="mt-2 grid grid-cols-3 gap-2 py-2 px-3 rounded-lg bg-white/5 border border-white/5 text-slate-300 font-sans text-xs">
+                      <div>
+                        <span className="block text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Listed Price</span>
+                        <span className="font-bold text-white text-xs md:text-sm">{item.listed_price.toLocaleString()} kr</span>
+                      </div>
+                      <div className="border-l border-white/5 pl-2">
+                        <span className="block text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Fair Market Value</span>
+                        <span className="font-bold text-slate-300 text-xs md:text-sm">{item.fair_market_value.toLocaleString()} kr</span>
+                      </div>
+                      <div className="border-l border-white/5 pl-2">
+                        {isOverpriced ? (
+                          <>
+                            <span className="block text-[9px] text-indigo-400 uppercase tracking-wider font-semibold">Markup / Premium</span>
+                            <span className="font-extrabold text-indigo-400 text-xs md:text-sm">+{priceDiff.toLocaleString()} kr</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="block text-[9px] text-emerald-400 uppercase tracking-wider font-semibold">Below FMV</span>
+                            <span className="font-extrabold text-emerald-400 text-xs md:text-sm">-{priceDiff.toLocaleString()} kr</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
 
