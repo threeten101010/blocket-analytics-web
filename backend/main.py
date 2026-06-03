@@ -121,6 +121,44 @@ def cohort_key_to_sql_conditions(cohort_key: str) -> str:
                 
     return " AND ".join(conditions)
 
+import re
+
+def is_safe_read_only_sql(sql_query: str) -> bool:
+    """
+    Validates that a SQL query is strictly a read-only query.
+    Blocks write commands, data exports, file actions, and stacked queries.
+    """
+    # 1. Clean the query comments
+    cleaned = re.sub(r'--.*$', '', sql_query, flags=re.MULTILINE)
+    cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL)
+    cleaned = cleaned.strip()
+    
+    if not cleaned:
+        return False
+        
+    # 2. Block stacked queries (semicolon query injection)
+    if ';' in cleaned:
+        parts = [p.strip() for p in cleaned.split(';') if p.strip()]
+        if len(parts) > 1:
+            return False
+            
+    # 3. Verify it starts with a safe read-only instruction
+    first_word_match = re.match(r'^([a-zA-Z]+)', cleaned)
+    if not first_word_match:
+        return False
+    first_word = first_word_match.group(1).upper()
+    
+    SAFE_START_KEYWORDS = {"SELECT", "WITH", "DESCRIBE", "SHOW", "EXPLAIN"}
+    if first_word not in SAFE_START_KEYWORDS:
+        return False
+        
+    # 4. Search for forbidden write and admin keywords with word boundaries
+    forbidden_pattern = r'\b(insert|update|delete|drop|alter|create|replace|truncate|grant|revoke|execute|exec|merge|upsert|load|copy|attach|detach)\b'
+    if re.search(forbidden_pattern, cleaned.lower()):
+        return False
+        
+    return True
+
 # --- REST Endpoints ---
 
 @app.get("/api/health")
@@ -138,7 +176,14 @@ def run_natural_language_query(payload: QueryRequest):
     # 1. Translate via Gemini
     translation = translate_query_to_sql(payload.user_query, payload.model_choice)
     
-    # 2. Run remote SQL
+    # 2. Programmatic SQL Security Sanitization
+    if not is_safe_read_only_sql(translation.sql_query):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Security Policy Violation: The compiled SQL statement is classified as unsafe or contains forbidden write operations. SQL: {translation.sql_query}"
+        )
+        
+    # 3. Run remote SQL
     success, cols, rows, err = execute_remote_sql(translation.sql_query)
     
     if not success:
