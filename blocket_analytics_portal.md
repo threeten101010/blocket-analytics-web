@@ -16,11 +16,12 @@ Below are the high-fidelity user interface mockups for the key tabs in the porta
 ---
 
 ## ⚙️ Tech Stack & Architecture
-* **Frontend**: Next.js (TypeScript) + TailwindCSS for sleek dark glassmorphism (glass-panel backdrops) and Lucide-React icon packs.
+* **Frontend**: Next.js 15 (TypeScript, React 19) + TailwindCSS 3 for sleek dark glassmorphism (glass-panel backdrops) and Lucide-React icon packs.
 * **Charts**: Recharts-based dynamic data visualization (supporting Line, Bar, Pie, Scatter, and Table layouts).
-* **Backend**: FastAPI (Python) running on port `8000`.
-* **Database Engine**: DuckDB for sub-millisecond analytical aggregations on crawled listing files.
+* **Backend**: FastAPI (Python) running on port `8000` with Uvicorn hot-reload.
+* **Database Engine**: DuckDB on the remote server, queried over Tailscale SSH.
 * **Natural Language Compiler**: Gemini 2.5 compiling user questions to DuckDB SQL.
+* **Remote Connectivity**: Tailscale SSH tunnel to remote database server (`101010_remote`).
 
 ---
 
@@ -35,11 +36,96 @@ Allows users to type open-ended queries (e.g., *"Show the average mileage and pr
 ### 2. ⚡ Deal Finder (`deals`)
 Scans database metrics and ranks active motorcycle listings by their "deal score" (measuring listing price against customized fair market values). Identifies under-priced listings instantly.
 
+**Features:**
+* **Column A — Underpriced Value Deals**: Listings priced 15–45% below their national cohort FMV.
+* **Column B — Highly Negotiable Postings**: Listings sitting on the market significantly longer than comparable ones, indicating seller willingness to discount.
+* **Pricing Comparison Grid**: Each deal card displays a structured 3-column grid showing **Listed Price**, **Fair Market Value**, and **Total Savings** (or **Markup/Premium**) side-by-side to eliminate mental arithmetic.
+* **Interactive Filters**: Brand, Location, and Minimum Price-Drop dropdown filters at the top of the page to refine both columns simultaneously.
+
 ### 3. 🧮 Cohort Valuation (`calculator`)
-A pricing calculator that lets users input motorcycle specifications (Brand, Model, Year, Mileage, Engine Size) to receive a calculated appraisal score based on historical market trends, with real-time model and location filters.
+A pricing calculator that lets users input motorcycle specifications to receive a calculated appraisal score based on historical market trends.
+
+**Input Specifications Form:**
+* **Brand** — Dropdown selector (10 most common brands).
+* **Style Class** — Dropdown selector (Touring, Sport, Custom, etc.).
+* **Manufacture Year** — Numeric input.
+* **Mileage (km)** — Numeric input.
+* **Engine Displacement (cc)** — Numeric input.
+* **Model (Optional)** — Dynamic dropdown populated by available models for the selected Brand+Style combination.
+* **Location (Optional)** — Dynamic dropdown populated by available locations for the selected Brand+Style combination.
+
+**Dynamic Behavior:**
+* When Brand or Style Class changes, the backend API (`GET /api/cohort-options`) is called to fetch distinct models and locations from the database for that specific combination. The Model and Location dropdowns are repopulated dynamically.
+* If Model or Location are specified, the backend recalculates the **FMV** (median price of the refined subset) and **Cohort Sample Size** dynamically rather than relying on the broad category statistics.
+
+**Result Panel:**
+* Estimated Fair Market Value display.
+* Expected Days to Sell and Cohort Sample Size metrics.
+* Cohort hierarchy resolution info (which level of specificity was matched).
+* **Cohort Refinement Filters**: Post-appraisal filters for Model and Location to refine the scatter chart and listing registry.
+* **Scatter Chart**: Mileage vs Price distribution with FMV reference lines (baseline green + filtered violet).
+* **Raw Cohort Database Registry**: Scrollable list of matched listings with Active/Sold status badges.
 
 ### 4. 🗺️ Geographic Insights (`geo`)
 Maps listing densities, volume, and average price ranges across Swedish regions (e.g., Stockholm, Västra Götaland, Skåne) to locate geographic pricing arbitrage opportunities.
+
+---
+
+## 🔌 API Endpoint Reference
+
+### `POST /api/query`
+Translates natural language questions into DuckDB SQL and executes them.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_query` | string | Natural language question |
+| `model_choice` | string | Gemini model variant (default: `gemini-2.5-flash`) |
+
+### `POST /api/appraise`
+Calculates fair market value using hierarchical cohort medians.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `brand` | string | ✅ | Motorcycle brand |
+| `vehicle_type` | string | ✅ | Style class |
+| `year` | int | ✅ | Manufacture year |
+| `mileage` | int | ✅ | Mileage in km |
+| `cc` | int | ✅ | Engine displacement |
+| `model` | string | ❌ | Optional model filter (applies ILIKE matching) |
+| `location` | string | ❌ | Optional location filter (applies ILIKE matching) |
+
+**Behavior:** When `model` or `location` are provided, listings are filtered server-side and the FMV is dynamically recalculated as the median price of the refined subset.
+
+### `GET /api/cohort-options`
+Fetches available models and locations for a given brand+style combination.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `brand` | string | Motorcycle brand |
+| `vehicle_type` | string | Style class |
+
+**Returns:** `{ "models": ["MT-07", "R1", ...], "locations": ["Stockholm", "Göteborg", ...] }`
+
+### `GET /api/deals`
+Fetches top underpriced bargains and highly negotiable postings.
+
+### `GET /api/geo`
+Returns geographic tier statistics and per-city volume/price deviation data.
+
+---
+
+## 🗄️ Database Connectivity Engine
+
+The backend connects to the remote DuckDB database over Tailscale SSH using an optimized two-tier strategy:
+
+### Connection Strategy (`backend/database.py`)
+1. **Direct Read-Only Connection (Primary)**: Attempts `duckdb.connect(path, read_only=True)` directly on the source database. DuckDB natively supports concurrent read-only queries, making this the fastest path (~0.8s round-trip over SSH).
+2. **Fallback Copy (Secondary)**: If the direct connection fails (e.g., due to an active write lock from the scraper daemon), the system copies the database file to `/tmp` and connects to the copy.
+3. **Connection Cleanup**: The connection is always explicitly closed in a `finally` block, and any temporary copies are removed.
+
+### Performance Notes
+* The original implementation always copied the full 52MB database file before every query, causing multi-second latency. The optimized strategy eliminates this copy in the common case.
+* API response times dropped from several seconds to **~0.8 seconds** total round-trip.
 
 ---
 
@@ -94,3 +180,60 @@ The listing's `title` is scanned for high-value and high-risk terms to apply fin
 * **Safety Bounds**: The final multiplier is capped strictly between $0.60$ and $1.40$ (unless it's a severe defect) to ensure anomalous listings are not appraised with unrealistic values.
 * **Rounding**: Output is rounded to the nearest $100 \text{ SEK}$.
 
+---
+
+## 📂 Project Directory Structure
+
+```text
+blocket-analytics-web/
+├── package.json               # Next.js, Tailwind, Recharts, and TypeScript dependencies
+├── tsconfig.json              # TypeScript compilation rules
+├── tailwind.config.js         # Tailored dark-mode colors & glassmorphism utilities
+├── next.config.js             # Client configurations
+├── Dockerfile                 # Container build configuration
+├── docker-compose.yml         # Docker Compose orchestration
+├── run_dev.sh                 # Shell script to boot both servers concurrently
+│
+├── app/                       # App Router Directories
+│   ├── layout.tsx             # HTML body, fonts, and dark theme background
+│   ├── page.tsx               # Dashboard Portal (tabbed navigation with 4 views)
+│   └── globals.css            # Tailwind imports, glassmorphism classes, scrollbar styles
+│
+├── components/                # Modular React Components
+│   ├── QueryInput.tsx         # Natural language search field with animated glows
+│   ├── AnalyticsChart.tsx     # Dynamic chart visualizer (Bar/Line/Pie/Scatter)
+│   ├── AnalyticsTable.tsx     # Interactive data grid with sorting
+│   ├── DealsTab.tsx           # Deal Finder: pricing grids, filters, bargain cards
+│   ├── CalculatorTab.tsx      # Cohort Appraiser: specs form, scatter chart, registry
+│   └── GeoTab.tsx             # Geographic Insights: tier stats, city volumes
+│
+├── backend/                   # FastAPI Server
+│   ├── main.py                # Router, CORS, endpoint definitions
+│   ├── database.py            # Remote DuckDB SSH connector (optimized read-only)
+│   └── translator.py          # AI SQL Translator (Gemini schema-aware compiler)
+│
+└── blocket_analytics_portal.md  # This documentation file
+```
+
+---
+
+## 🏁 Development & Deployment
+
+### Local Development
+```bash
+# Start both servers concurrently
+./run_dev.sh
+
+# Or start individually:
+cd backend && python3 main.py          # FastAPI on port 8000
+npm run dev                             # Next.js on port 3005
+```
+
+### Git Workflow
+* **Sandbox**: `/projects/blocket-analytics-web` — Active development on `dev` branch.
+* **Production**: `/repos/threeten101010/blocket-analytics-web` — Updated via `main` branch pulls.
+* All changes are committed to `dev`, merged to `main`, pushed to GitHub, then pulled into production.
+
+### Known Operational Notes
+* **Cache Corruption**: Running `next build` while the dev server is active corrupts the `.next` cache. Always stop the dev server before building, or delete `.next` and restart.
+* **DuckDB Locks**: The remote scraper daemon holds a write lock on the database during active crawling cycles. The database connector handles this gracefully with its fallback copy strategy.
