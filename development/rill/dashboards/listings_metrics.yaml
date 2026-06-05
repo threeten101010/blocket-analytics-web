@@ -30,6 +30,15 @@ dimensions:
   - name: status
     column: status
     label: "Status"
+  - name: region
+    column: region
+    label: "Region"
+  - name: kommun
+    column: kommun
+    label: "Municipality"
+  - name: country
+    column: country
+    label: "Country"
   - name: is_active
     column: is_active
     label: "Is Active"
