@@ -1,0 +1,5 @@
+type: source
+
+connector: duckdb
+db: "/home/aaronberman/Gemini/projects/blocket-webscraper/data/scraped_listings.duckdb"
+sql: "SELECT * FROM listings_analytics"

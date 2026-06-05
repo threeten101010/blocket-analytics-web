@@ -1,0 +1,62 @@
+version: 1
+type: metrics_view
+
+title: "Blocket Motorcycle Listings Metrics"
+model: listings
+timeseries: first_scraped_at
+
+dimensions:
+  - name: brand
+    column: brand
+    label: "Brand"
+  - name: model
+    column: model
+    label: "Model"
+  - name: location
+    column: location
+    label: "Location"
+  - name: seller_type
+    column: seller_type
+    label: "Seller Type"
+  - name: vehicle_type
+    column: vehicle_type
+    label: "Vehicle Class"
+  - name: gearbox
+    column: gearbox
+    label: "Gearbox"
+  - name: fuel_type
+    column: fuel_type
+    label: "Fuel Type"
+  - name: status
+    column: status
+    label: "Status"
+  - name: is_active
+    column: is_active
+    label: "Is Active"
+
+measures:
+  - name: total_listings
+    expression: "count(*)"
+    label: "Total Listings"
+    description: "Total number of listings tracked"
+    format_preset: integer
+  - name: active_listings
+    expression: "count(CASE WHEN is_active = TRUE THEN 1 END)"
+    label: "Active Listings"
+    description: "Number of currently active listings"
+    format_preset: integer
+  - name: removed_listings
+    expression: "count(CASE WHEN is_active = FALSE THEN 1 END)"
+    label: "Removed Listings"
+    description: "Number of deactivated/removed listings"
+    format_preset: integer
+  - name: avg_price
+    expression: "avg(price_sek)"
+    label: "Avg Price (SEK)"
+    description: "Average price in Swedish Krona"
+    format_preset: currency_usd
+  - name: avg_mileage
+    expression: "avg(mileage_km)"
+    label: "Avg Mileage (km)"
+    description: "Average mileage in kilometers"
+    format_preset: integer

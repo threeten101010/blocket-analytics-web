@@ -22,6 +22,7 @@ Below are the high-fidelity user interface mockups for the key tabs in the porta
 * **Database Engine**: DuckDB on the remote server, queried over Tailscale SSH.
 * **Natural Language Compiler**: Gemini 2.5 compiling user questions to DuckDB SQL.
 * **Remote Connectivity**: Tailscale SSH tunnel to remote database server (`101010_remote`).
+* **Interactive BI Dashboard**: Rill Developer (`v0.86.6`) running on port `9009` for sub-second local slicing and dicing of the scraper database.
 
 ---
 
@@ -68,6 +69,9 @@ A pricing calculator that lets users input motorcycle specifications to receive 
 
 ### 4. 🗺️ Geographic Insights (`geo`)
 Maps listing densities, volume, and average price ranges across Swedish regions (e.g., Stockholm, Västra Götaland, Skåne) to locate geographic pricing arbitrage opportunities.
+
+### 5. 📊 Rill Dashboard (`rill`)
+A standalone Rill Developer dashboard serving on port `9009` designed for sub-second interactive data exploration. It provides real-time time-series aggregation and sidebar filters (for Brand, Location, Seller Type, Gearbox, etc.) connected to the scraper DuckDB database.
 
 ---
 
@@ -192,7 +196,18 @@ blocket-analytics-web/
 ├── next.config.js             # Client configurations
 ├── Dockerfile                 # Container build configuration
 ├── docker-compose.yml         # Docker Compose orchestration
-├── run_dev.sh                 # Shell script to boot both servers concurrently
+├── run_dev.sh                 # Boot both servers concurrently
+├── blocket_rill_dashboard_preview.png  # Visual preview screenshot of the Rill dashboard
+│
+├── development/               # GitOps ticketing and project artifacts
+│   ├── features/              # Design stories, specifications, and walkthrough guides
+│   ├── backlog/               # Pending development tickets
+│   ├── done/                  # Completed and audited tickets
+│   └── rill/                  # Rill Developer configuration files
+│       ├── rill.yaml          # Rill compiler settings
+│       ├── connectors/        # DuckDB connector configuration
+│       ├── sources/           # Database source files (pointing to DuckDB)
+│       └── dashboards/        # Metrics views and explore dashboards
 │
 ├── app/                       # App Router Directories
 │   ├── layout.tsx             # HTML body, fonts, and dark theme background

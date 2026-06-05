@@ -1,0 +1,6 @@
+type: explore
+
+display_name: "Blocket Motorcycle Market Dashboard"
+metrics_view: listings_metrics
+dimensions: "*"
+measures: "*"
